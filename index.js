@@ -40,8 +40,12 @@ async function run() {
             res.send(result)
         })
 
-
-        app.get('/products/:brandName', async (req, res) => {
+        app.get('/categories', async (req, res) => {
+            const cursor = categoryCollection.find()
+            const result = await cursor.toArray()
+            res.send(result)
+        })
+        app.get('/products/brand/:brandName', async (req, res) => {
             const category = req.params.brandName
             const query = { brandName: category }
             const product = productCollection.find(query)
@@ -49,11 +53,7 @@ async function run() {
             res.send(result)
         })
 
-        app.get('/categories', async (req, res) => {
-            const cursor = categoryCollection.find()
-            const result = await cursor.toArray()
-            res.send(result)
-        })
+
 
         app.post('/products', async (req, res) => {
             const product = req.body
@@ -63,30 +63,30 @@ async function run() {
         })
 
         // add product in cart
-        app.post('/carts', async (req, es) => {
+        app.post('/carts', async (req, res) => {
             const cart = req.body
             const result = await selectedCollection.insertOne(cart)
             res.send(result)
         })
 
-        app.put('/products/:id',async(req,res)=>{
+        app.put('/products/:id', async (req, res) => {
             const id = req.params.id
             const product = req.body
-            const filter = {_id: new ObjectId(id)}
-            const option = {upsert: true}
+            const filter = { _id: new ObjectId(id) }
+            const option = { upsert: true }
             const updatedProduct = {
-                $set:{
+                $set: {
                     brandName: product.brandName,
                     name: product.name,
                     price: product.price,
                     rating: product.rating,
                     shortDescription: product.shortDescription,
-                    type:product.type
+                    type: product.type
 
 
                 }
             }
-            const result = await productCollection.updateOne(filter, updatedProduct,option)
+            const result = await productCollection.updateOne(filter, updatedProduct, option)
             res.send(result)
         })
 
@@ -97,7 +97,26 @@ async function run() {
             res.send(result)
         })
 
+        // for card data
 
+        app.get('/carts', async(req,res)=>{
+            const cursor =  selectedCollection.find()
+            const result =  await cursor.toArray()
+            // console.log(result)
+            res.send(result)
+        })
+
+        app.delete('/carts/:id', async (req, res) => {
+            const id = req.params.id
+            const query = { _id: new ObjectId(id) }
+            const result = await selectedCollection.deleteOne(query)
+            res.send(result)
+        })
+        app.delete('/carts', async (req, res) => {
+            const query = req.body
+            const result = await selectedCollection.deleteMany(query)
+            res.send(result)
+        })
 
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
