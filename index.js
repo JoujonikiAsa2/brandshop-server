@@ -1,14 +1,26 @@
 const express = require('express')
 const cors = require('cors')
+const jwt = require('jsonwebtoken')
+// Send token from client to server
+const cookieParser = require('cookie-parser')
 const port = process.env.PORT || 5000
 require('dotenv').config()
 const app = express()
 
-app.use(cors())
+
+// Send token from client to server
+app.use(cors({
+    origin: ['http://localhost:5173'],
+    credentials: true
+}))
 app.use(express.json())
+
+// Send token from client to server
+app.use(cookieParser())
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ghkhwep.mongodb.net/?retryWrites=true&w=majority`;
+// const uri = 'mongodb://localhost:27017/'
 
 const client = new MongoClient(uri, {
     serverApi: {
@@ -17,6 +29,27 @@ const client = new MongoClient(uri, {
         deprecationErrors: true,
     }
 });
+
+const logger = async (req, res, next) => {
+    // console.log('called', req.hostname, req.originalUrl) //show the path
+    next()
+}
+
+const varifyToken = async (req, res, next) => {
+    const token = req.cookies?.token
+    // console.log("value", token)
+    if (!token) {
+        return res.status(401).send({ message: 'Unauthorized' })
+    }
+    jwt.verify(token, process.env.ACCESS_SECRET_TOKEN, (err, decoded) => {
+        if (err) {
+            return res.status(402).send({ message: 'Forbidden' })
+        }
+        // console.log('Value in the token', decoded)
+        req.user = decoded
+        next()
+    })
+}
 
 async function run() {
     try {
@@ -28,9 +61,32 @@ async function run() {
         const categoryCollection = client.db("ElectronicsProduct").collection("categories")
         const selectedCollection = client.db("ElectronicsProduct").collection("selectecProducts")
 
+        // auth related API
+
+        app.post('/jwt', async (req, res) => {
+            const user = req.body
+            // console.log(user)
+            // generate token
+            const token = jwt.sign(user, process.env.ACCESS_SECRET_TOKEN, { expiresIn: '3h' })
+            // res.send(token)
+            // console.log(token)
+
+
+            // store token at the client side  
+            // server to client
+            res
+                .cookie('token', token, {
+                    httpOnly: true,
+                    secure: false,
+                    // sameSite: 'none'  //makes problem
+                })
+                .send({ success: true })
+        })
+
         app.get('/products', async (req, res) => {
             const cursor = productCollection.find()
             const result = await cursor.toArray()
+            // console.log("tocken from the client side", req.cookies.token)
             res.send(result)
         })
         app.get('/products/:id', async (req, res) => {
@@ -58,7 +114,7 @@ async function run() {
         app.post('/products', async (req, res) => {
             const product = req.body
             const result = await productCollection.insertOne(product)
-            console.log(result)
+            // console.log(result)
             res.send(result)
         })
 
@@ -99,9 +155,10 @@ async function run() {
 
         // for card data
 
-        app.get('/carts', async(req,res)=>{
-            const cursor =  selectedCollection.find()
-            const result =  await cursor.toArray()
+        app.get('/carts', logger, varifyToken, async (req, res) => {
+            
+            const cursor = selectedCollection.find()
+            const result = await cursor.toArray()
             // console.log(result)
             res.send(result)
         })
